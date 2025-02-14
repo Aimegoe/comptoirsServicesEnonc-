@@ -88,9 +88,37 @@ public class CommandeService {
      */
     @Transactional
     public Ligne ajouterLigne(int commandeNum, int produitRef, @Positive int quantite) {
-        // TODO : implémenter cette méthode
-        throw new UnsupportedOperationException("Pas encore implémenté");
+        // Vérification que la commande existe
+        var commande = commandeDao.findById(commandeNum).
+            orElseThrow(() -> new java.util.NoSuchElementException("Commande non trouvée pour le numéro " + commandeNum));
+
+        // Vérification que la commande n'a pas déjà été envoyée
+        if (commande.getEnvoyeele() != null) {
+            throw new IllegalStateException("La commande a déjà été envoyée.");
+        }
+
+        // Vérification que la quantité dans la commande est positive
+        if (quantite <= 0) {
+            throw new jakarta.validation.ConstraintViolationException("La quantité doit être positive.", null);
+        }
+
+        // Vérification que le produit existe et est disponible
+        var produit = produitDao.findById(produitRef).orElseThrow();
+        if (produit.getUnitesEnStock() < quantite) {
+            throw new IllegalStateException("Ce produit n'est pas disponibleIl n'y a pas assez de stock pour ce produit.");
+        }
+
+        // Création et sauvegarde de la ligne de commande
+        var ligne = new Ligne(commande, produit, quantite);
+        ligneDao.save(ligne);
+
+        // Mise à jour de la quantité commandée du produit
+        produit.setUnitesCommandees(produit.getUnitesCommandees() + quantite);
+        produitDao.save(produit);
+
+        return ligne;
     }
+
 
     /**
      * Service métier : Enregistre l'expédition d'une commande connue par sa clé
@@ -108,7 +136,34 @@ public class CommandeService {
      */
     @Transactional
     public Commande enregistreExpedition(int commandeNum) {
-        // TODO : implémenter cette méthode
-        throw new UnsupportedOperationException("Pas encore implémenté");
+        // Vérification que la commande existe
+        var commande = commandeDao.findById(commandeNum).
+            orElseThrow(() -> new java.util.NoSuchElementException("Commande non trouvée pour le numéro " + commandeNum));
+
+        // Vérification que la commande n'a pas déjà été envoyée
+        if (commande.getEnvoyeele() != null) {
+            throw new IllegalStateException("La commande a déjà été envoyée.");
+        }
+
+        // Mise à jour la date d'expédition
+        commande.setEnvoyeele(LocalDate.now());
+
+        // Parcours des lignes de la commande et ajustement des stocks
+        for (Ligne ligne : commande.getLignes()) {
+            var produit = ligne.getProduit();
+            var quantiteCommandee = ligne.getQuantite();
+
+            // Réduction de la quantité en stock et commandée du produit
+            produit.setUnitesEnStock(produit.getUnitesEnStock() - quantiteCommandee);
+            produit.setUnitesCommandees(produit.getUnitesCommandees() - quantiteCommandee);
+
+            // Sauvegarde des modifications du produit
+            produitDao.save(produit);
+        }
+
+        // Sauvegarde de la commande avec la date d'expédition
+        commandeDao.save(commande);
+
+        return commande;
     }
 }
