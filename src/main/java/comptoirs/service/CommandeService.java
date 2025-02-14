@@ -104,8 +104,11 @@ public class CommandeService {
 
         // Vérification que le produit existe et est disponible
         var produit = produitDao.findById(produitRef).orElseThrow();
-        if (produit.getUnitesEnStock() < quantite) {
-            throw new IllegalStateException("Ce produit n'est pas disponibleIl n'y a pas assez de stock pour ce produit.");
+
+
+        // Vérification que le produit existe et est disponible
+        if ((produit.getUnitesEnStock() < quantite) || produit.isIndisponible()) {
+            throw new IllegalStateException("Ce produit n'a a pas assez de stock.");
         }
 
         // Création et sauvegarde de la ligne de commande
